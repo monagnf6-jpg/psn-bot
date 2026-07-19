@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوت صيد PSN</title>
+    <style>
+        body { background: #0d0d0d; color: #0f0; font-family: monospace; padding: 20px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 10px; border: 1px solid #333; margin-bottom: 20px; }
+        button { background: #0f0; color: #000; border: none; padding: 15px 30px; font-weight: bold; border-radius: 8px; font-size: 18px; }
+        .log { background: #000; padding: 10px; height: 200px; overflow-y: scroll; border: 1px solid #333; }
+        .stat { display: inline-block; margin-left: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🤖 بوت PSN</h1>
+        <p>ثلاثي ← رباعي (نتائج مؤكدة 100%)</p>
+        <button id="startBtn">▶ بدء الفحص</button>
+        <div id="status" style="margin-top:15px;"></div>
+    </div>
+    <div class="card">
+        <h3>📊 التقدم</h3>
+        <div id="progress">في انتظار البدء...</div>
+    </div>
+    <div class="card">
+        <h3>📋 السجل المباشر</h3>
+        <div id="log" class="log"></div>
+    </div>
+    <div class="card">
+        <h3>✅ النتائج النهائية</h3>
+        <pre id="results" style="color:#0f0;"></pre>
+    </div>
+    <script>
+        let updateInterval;
+        function updateStatus() {
+            fetch('/status')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('progress').innerHTML = `
+                        <span class="stat">المرحلة: ${data.phase}</span>
+                        <span class="stat">فحص: ${data.checked.toLocaleString()} / ${data.total.toLocaleString()}</span>
+                        <span class="stat">متاح: ${data.found}</span>
+                        <span class="stat">مضى: ${data.elapsed}s</span>
+                        <span class="stat">متبقي: ${data.remaining}s</span>
+                    `;
+                    let logDiv = document.getElementById('log');
+                    logDiv.innerHTML = data.log.map(t => `<div>${t}</div>`).join('');
+                    if (data.done) {
+                        clearInterval(updateInterval);
+                        document.getElementById('startBtn').disabled = false;
+                        document.getElementById('status').innerHTML = '✅ اكتمل الفحص!';
+                        fetchResults();
+                    }
+                });
+        }
+        function fetchResults() {
+            fetch('/results')
+                .then(r => r.json())
+                .then(data => {
+                    let html = '';
+                    if (data.found.length === 0) {
+                        html = '❌ لم يتم العثور على أي اسم متاح.';
+                    } else {
+                        html = data.found.map((item, idx) => `${idx+1}. ${item[0]} (${item[1]} أحرف)`).join('
+');
+                    }
+                    document.getElementById('results').innerText = html;
+                });
+        }
+        document.getElementById('startBtn').onclick = function() {
+            this.disabled = true;
+            this.innerText = '⏳ جارٍ التشغيل...';
+            document.getElementById('status').innerHTML = '🔄 بدأ الفحص...';
+            fetch('/start', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        this.disabled = false;
+                        this.innerText = '▶ بدء الفحص';
+                        return;
+                    }
+                    updateInterval = setInterval(updateStatus, 1000);
+                    updateStatus();
+                });
+        };
+        updateStatus();
+    </script>
+</body>
+</html>
